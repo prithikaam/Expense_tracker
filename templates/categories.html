@@ -1,0 +1,187 @@
+{% extends 'base.html' %}
+
+{% block title %}Category Management{% endblock %}
+{% block page_title %}Category Management{% endblock %}
+{% block page_subtitle %}Organize, customize, and establish spending budget limits per category{% endblock %}
+
+{% block content %}
+<!-- Top Header Actions -->
+<div class="flex-between mb-4">
+    <div class="section-title">
+        <h3><i class="fa-solid fa-layer-group"></i> Active Expense Categories</h3>
+        <p class="text-muted">Total {{ categories|length }} spending categories defined</p>
+    </div>
+    <button class="btn btn-primary" onclick="openModal('addCategoryModal')">
+        <i class="fa-solid fa-plus"></i> Create Category
+    </button>
+</div>
+
+<!-- Categories Card Grid -->
+<div class="categories-grid">
+    {% for cat in categories %}
+        {% set spent = cat.total_spent or 0.0 %}
+        {% set month_spent = cat.month_spent or 0.0 %}
+        {% set limit = cat.budget_limit or 0.0 %}
+        {% set pct = (month_spent / limit * 100) if limit > 0 else 0 %}
+        <div class="category-card glass">
+            <div class="category-header">
+                <div class="cat-title-wrap">
+                    <span class="color-badge" style="background-color: {{ cat.color }};"></span>
+                    <h4 class="cat-name">{{ cat.name }}</h4>
+                </div>
+                <div class="cat-actions">
+                    <button class="btn-icon text-primary" title="Edit Category" onclick='openEditCategoryModal({{ cat|tojson }})'>
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button class="btn-icon text-danger" title="Delete Category" onclick='confirmDeleteCategory({{ cat.id }}, {{ cat.name|tojson }})'>
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+            </div>
+
+            <p class="cat-desc">{{ cat.description or 'No category description provided.' }}</p>
+
+            <div class="cat-metrics">
+                <div class="metric-row">
+                    <span class="label">Total Spent (all time):</span>
+                    <span class="value font-bold">₹{{ "%.2f"|format(spent) }}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="label">Spent This Month:</span>
+                    <span class="value font-bold">₹{{ "%.2f"|format(month_spent) }}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="label">Monthly Budget Limit:</span>
+                    <span class="value">₹{{ "%.2f"|format(limit) }}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="label">Transactions Count:</span>
+                    <span class="value">{{ cat.expense_count }} items</span>
+                </div>
+            </div>
+
+            <!-- Budget Limit Progress Bar -->
+            {% if limit > 0 %}
+                <div class="budget-progress-wrap mt-3">
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill {% if pct > 100 %}fill-danger{% elif pct > 80 %}fill-warning{% else %}fill-success{% endif %}" 
+                             style="width: {{ [pct, 100]|min }}%;"></div>
+                    </div>
+                    <div class="flex-between progress-labels mt-1">
+                        <span class="small-text">{{ "%.1f"|format(pct) }}% of budget used</span>
+                        {% if month_spent > limit %}
+                            <span class="small-badge badge-danger">Exceeded by ₹{{ "%.2f"|format(month_spent - limit) }}</span>
+                        {% else %}
+                            <span class="small-badge badge-success">₹{{ "%.2f"|format(limit - month_spent) }} left</span>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    {% endfor %}
+</div>
+
+<!-- Add Category Modal -->
+<div class="modal-backdrop" id="addCategoryModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><i class="fa-solid fa-plus-circle"></i> Create New Expense Category</h3>
+            <button class="modal-close" onclick="closeModal('addCategoryModal')">&times;</button>
+        </div>
+        <form action="{{ url_for('add_category') }}" method="POST" class="modal-body">
+            <div class="form-group">
+                <label for="cat_name">Category Name</label>
+                <input type="text" id="cat_name" name="name" required placeholder="e.g., Groceries, Rent, Travel">
+            </div>
+
+            <div class="form-group">
+                <label for="cat_desc">Description</label>
+                <textarea id="cat_desc" name="description" rows="2" placeholder="Purpose or context for this category"></textarea>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group col-6">
+                    <label for="cat_color">Badge Color Code</label>
+                    <input type="color" id="cat_color" name="color" value="#4f46e5">
+                </div>
+
+                <div class="form-group col-6">
+                    <label for="cat_budget">Monthly Budget Limit (₹)</label>
+                    <input type="number" step="0.01" min="0" id="cat_budget" name="budget_limit" value="0.00">
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('addCategoryModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Save Category</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Category Modal -->
+<div class="modal-backdrop" id="editCategoryModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><i class="fa-solid fa-pen-to-square"></i> Edit Category</h3>
+            <button class="modal-close" onclick="closeModal('editCategoryModal')">&times;</button>
+        </div>
+        <form id="editCategoryForm" action="" method="POST" class="modal-body">
+            <div class="form-group">
+                <label for="edit_cat_name">Category Name</label>
+                <input type="text" id="edit_cat_name" name="name" required>
+            </div>
+
+            <div class="form-group">
+                <label for="edit_cat_desc">Description</label>
+                <textarea id="edit_cat_desc" name="description" rows="2"></textarea>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group col-6">
+                    <label for="edit_cat_color">Badge Color Code</label>
+                    <input type="color" id="edit_cat_color" name="color">
+                </div>
+
+                <div class="form-group col-6">
+                    <label for="edit_cat_budget">Monthly Budget Limit (₹)</label>
+                    <input type="number" step="0.01" min="0" id="edit_cat_budget" name="budget_limit">
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('editCategoryModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Hidden Form for Delete -->
+<form id="deleteCategoryForm" method="POST" action="" style="display:none;"></form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function openEditCategoryModal(cat) {
+        document.getElementById('edit_cat_name').value = cat.name;
+        document.getElementById('edit_cat_desc').value = cat.description || '';
+        document.getElementById('edit_cat_color').value = cat.color || '#4f46e5';
+        document.getElementById('edit_cat_budget').value = cat.budget_limit || 0.00;
+
+        const form = document.getElementById('editCategoryForm');
+        form.action = `/categories/edit/${cat.id}`;
+
+        openModal('editCategoryModal');
+    }
+
+    function confirmDeleteCategory(id, name) {
+        if (confirm(`Are you sure you want to delete category "${name}"?\nWarning: Expenses under this category will be removed.`)) {
+            const form = document.getElementById('deleteCategoryForm');
+            form.action = `/categories/delete/${id}`;
+            form.submit();
+        }
+    }
+</script>
+{% endblock %}

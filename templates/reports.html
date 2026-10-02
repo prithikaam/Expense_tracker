@@ -1,0 +1,257 @@
+{% extends 'base.html' %}
+
+{% block title %}Reports & Financial Analytics{% endblock %}
+{% block page_title %}Reports & Analytical Insights{% endblock %}
+{% block page_subtitle %}In-depth periodic analysis, daily/weekly breakdowns, and category spending distributions{% endblock %}
+
+{% block content %}
+<!-- Top Summary Metrics Banner -->
+<div class="kpi-grid mb-4">
+    <div class="kpi-card glass">
+        <div class="kpi-icon icon-indigo">
+            <i class="fa-solid fa-calculator"></i>
+        </div>
+        <div class="kpi-info">
+            <span class="kpi-title">Average Monthly Expenditure</span>
+            <h3 class="kpi-value">₹{{ "%.2f"|format(avg_monthly.average_monthly_spending) }}</h3>
+            <span class="kpi-subtitle">Calculated using SQL Subquery AVG() across {{ avg_monthly.months_count }} active months</span>
+        </div>
+    </div>
+
+    <div class="kpi-card glass">
+        <div class="kpi-icon icon-emerald">
+            <i class="fa-solid fa-calendar-alt"></i>
+        </div>
+        <div class="kpi-info">
+            <span class="kpi-title">Total Evaluated Expenditure</span>
+            <h3 class="kpi-value">₹{{ "%.2f"|format(avg_monthly.total_spending_sum or 0.0) }}</h3>
+            <span class="kpi-subtitle">Cumulative sum across recorded database transactions</span>
+        </div>
+    </div>
+
+    <div class="kpi-card glass">
+        <div class="kpi-icon icon-amber">
+            <i class="fa-solid fa-filter"></i>
+        </div>
+        <div class="kpi-info">
+            <span class="kpi-title">High Spending Threshold</span>
+            <h3 class="kpi-value">{{ high_spending_categories|length }} Categories</h3>
+            <span class="kpi-subtitle">Identified via SQL HAVING SUM(amount) > 5000</span>
+        </div>
+    </div>
+</div>
+
+<!-- Tab Navigation Bar -->
+<div class="tabs-header glass mb-4">
+    <button class="tab-btn active" onclick="switchReportTab('monthlyTab', this)">
+        <i class="fa-solid fa-calendar-days"></i> Monthly Report
+    </button>
+    <button class="tab-btn" onclick="switchReportTab('weeklyTab', this)">
+        <i class="fa-solid fa-chart-bar"></i> Weekly Trends
+    </button>
+    <button class="tab-btn" onclick="switchReportTab('dailyTab', this)">
+        <i class="fa-solid fa-clock"></i> Daily Breakdown
+    </button>
+    <button class="tab-btn" onclick="switchReportTab('categoryTab', this)">
+        <i class="fa-solid fa-pie-chart"></i> Category Analysis
+    </button>
+
+    <div class="tab-actions">
+        <a href="{{ url_for('export_csv') }}" class="btn btn-secondary btn-sm" title="Export CSV Data">
+            <i class="fa-solid fa-file-csv"></i> Export CSV Report
+        </a>
+    </div>
+</div>
+
+<!-- Tab 1: Monthly Spending Reports -->
+<div id="monthlyTab" class="report-tab-content active">
+    <div class="card glass">
+        <div class="card-header">
+            <h3><i class="fa-solid fa-calendar-days"></i> Monthly Spending Summary Report</h3>
+            <span class="card-tag">SQL TO_CHAR(date, YYYY-MM) & GROUP BY</span>
+        </div>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Year - Month</th>
+                        <th>Transaction Count</th>
+                        <th class="text-right">Avg Per Transaction</th>
+                        <th class="text-right">Total Monthly Expenditure</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in monthly_report %}
+                        <tr>
+                            <td class="font-bold font-mono">{{ m.month_year }}</td>
+                            <td><span class="badge-payment">{{ m.transaction_count }} transactions</span></td>
+                            <td class="text-right font-mono">₹{{ "%.2f"|format(m.monthly_average) }}</td>
+                            <td class="text-right font-bold text-lg text-primary">₹{{ "%.2f"|format(m.monthly_total) }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Tab 2: Weekly Expense Reports -->
+<div id="weeklyTab" class="report-tab-content" style="display:none;">
+    <div class="card glass">
+        <div class="card-header">
+            <h3><i class="fa-solid fa-chart-bar"></i> Weekly Spending Analysis</h3>
+            <span class="card-tag">SQL TO_CHAR(date, IYYY-"W"IW) Aggregation</span>
+        </div>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Week Period (Year-Week)</th>
+                        <th>Start Date</th>
+                        <th>End Date</th>
+                        <th>Transactions</th>
+                        <th class="text-right">Avg Transaction</th>
+                        <th class="text-right">Weekly Total Spending</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for w in weekly_report %}
+                        <tr>
+                            <td class="font-bold font-mono">{{ w.year_week }}</td>
+                            <td class="font-mono text-muted">{{ w.week_start }}</td>
+                            <td class="font-mono text-muted">{{ w.week_end }}</td>
+                            <td><span class="badge-payment">{{ w.transaction_count }} transactions</span></td>
+                            <td class="text-right font-mono">₹{{ "%.2f"|format(w.weekly_average) }}</td>
+                            <td class="text-right font-bold text-lg text-emerald">₹{{ "%.2f"|format(w.weekly_total) }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Tab 3: Daily Expense Reports -->
+<div id="dailyTab" class="report-tab-content" style="display:none;">
+    <div class="card glass">
+        <div class="card-header">
+            <h3><i class="fa-solid fa-clock"></i> Daily Spending Aggregation Report</h3>
+            <span class="card-tag">SQL GROUP BY expense_date ORDER BY ASC</span>
+        </div>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Items Bought</th>
+                        <th class="text-right">Average Daily Transaction</th>
+                        <th class="text-right">Total Daily Spent</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in daily_report %}
+                        <tr>
+                            <td class="font-bold font-mono">{{ d.expense_date }}</td>
+                            <td><span class="badge-payment">{{ d.transaction_count }} transactions</span></td>
+                            <td class="text-right font-mono">₹{{ "%.2f"|format(d.daily_average) }}</td>
+                            <td class="text-right font-bold text-lg">₹{{ "%.2f"|format(d.daily_total) }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Tab 4: Category-Wise Spending Analysis -->
+<div id="categoryTab" class="report-tab-content" style="display:none;">
+    <div class="card glass mb-4">
+        <div class="card-header">
+            <h3><i class="fa-solid fa-pie-chart"></i> Category Spending & Budget Analysis</h3>
+            <span class="card-tag">SQL JOIN, SUM(), AVG(), GROUP BY</span>
+        </div>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Transactions</th>
+                        <th class="text-right">Budget Limit</th>
+                        <th class="text-right">Average Item Cost</th>
+                        <th class="text-right">% of Total Expenses</th>
+                        <th class="text-right">Total Category Spent</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in category_analysis %}
+                        <tr>
+                            <td>
+                                <span class="category-pill" style="background-color: {{ c.category_color }}20; color: {{ c.category_color }}; border-color: {{ c.category_color }}40;">
+                                    <span class="dot" style="background-color: {{ c.category_color }};"></span>
+                                    {{ c.category_name }}
+                                </span>
+                            </td>
+                            <td>{{ c.transaction_count }} items</td>
+                            <td class="text-right font-mono">₹{{ "%.2f"|format(c.budget_limit) }}</td>
+                            <td class="text-right font-mono">₹{{ "%.2f"|format(c.avg_spent) }}</td>
+                            <td class="text-right">
+                                <span class="percentage-badge">{{ c.percentage }}%</span>
+                            </td>
+                            <td class="text-right font-bold text-lg">₹{{ "%.2f"|format(c.total_spent) }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- SQL HAVING Clause High Spending Categories Highlight -->
+    <div class="card glass">
+        <div class="card-header">
+            <h3><i class="fa-solid fa-triangle-exclamation text-amber"></i> High Spending Categories (HAVING SUM(amount) > 5000)</h3>
+            <span class="card-tag">SQL HAVING Demonstration</span>
+        </div>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Category Name</th>
+                        <th>Budget Limit</th>
+                        <th>Total Spent</th>
+                        <th>Variance Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for hc in high_spending_categories %}
+                        <tr>
+                            <td class="font-bold">{{ hc.category_name }}</td>
+                            <td class="font-mono">₹{{ "%.2f"|format(hc.budget_limit) }}</td>
+                            <td class="font-bold text-danger">₹{{ "%.2f"|format(hc.total_spent) }}</td>
+                            <td>
+                                {% if hc.total_spent > hc.budget_limit %}
+                                    <span class="badge-danger">Over Budget by ₹{{ "%.2f"|format(hc.total_spent - hc.budget_limit) }}</span>
+                                {% else %}
+                                    <span class="badge-success">Within Budget Limit</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function switchReportTab(tabId, btn) {
+        document.querySelectorAll('.report-tab-content').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+        document.getElementById(tabId).style.display = 'block';
+        btn.classList.add('active');
+    }
+</script>
+{% endblock %}

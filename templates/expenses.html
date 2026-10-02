@@ -1,0 +1,217 @@
+{% extends 'base.html' %}
+
+{% block title %}Expense Management{% endblock %}
+{% block page_title %}Expense Management{% endblock %}
+{% block page_subtitle %}Record, search, filter and manage all daily expenditure records{% endblock %}
+
+{% block content %}
+<!-- Filter & Search Panel -->
+<div class="filter-card glass mb-4">
+    <form method="GET" action="{{ url_for('expenses') }}" class="filter-form">
+        <div class="filter-grid">
+            <div class="filter-group">
+                <label><i class="fa-solid fa-magnifying-glass"></i> Search</label>
+                <input type="text" name="search" value="{{ current_filters.search }}" placeholder="Search description or category...">
+            </div>
+
+            <div class="filter-group">
+                <label><i class="fa-solid fa-folder"></i> Category</label>
+                <select name="category_id">
+                    <option value="">All Categories</option>
+                    {% for cat in categories %}
+                        <option value="{{ cat.id }}" {% if current_filters.category_id == cat.id|string %}selected{% endif %}>
+                            {{ cat.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label><i class="fa-solid fa-wallet"></i> Payment Method</label>
+                <select name="payment_method">
+                    <option value="All">All Methods</option>
+                    <option value="UPI" {% if current_filters.payment_method == 'UPI' %}selected{% endif %}>UPI</option>
+                    <option value="Credit Card" {% if current_filters.payment_method == 'Credit Card' %}selected{% endif %}>Credit Card</option>
+                    <option value="Debit Card" {% if current_filters.payment_method == 'Debit Card' %}selected{% endif %}>Debit Card</option>
+                    <option value="Net Banking" {% if current_filters.payment_method == 'Net Banking' %}selected{% endif %}>Net Banking</option>
+                    <option value="Cash" {% if current_filters.payment_method == 'Cash' %}selected{% endif %}>Cash</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label><i class="fa-regular fa-calendar-days"></i> From Date</label>
+                <input type="date" name="start_date" value="{{ current_filters.start_date }}">
+            </div>
+
+            <div class="filter-group">
+                <label><i class="fa-regular fa-calendar-days"></i> To Date</label>
+                <input type="date" name="end_date" value="{{ current_filters.end_date }}">
+            </div>
+
+            <div class="filter-group">
+                <label><i class="fa-solid fa-sort"></i> Sort By</label>
+                <select name="sort_by">
+                    <option value="expense_date" {% if current_filters.sort_by == 'expense_date' %}selected{% endif %}>Date</option>
+                    <option value="amount" {% if current_filters.sort_by == 'amount' %}selected{% endif %}>Amount</option>
+                    <option value="category" {% if current_filters.sort_by == 'category' %}selected{% endif %}>Category</option>
+                </select>
+            </div>
+
+            <div class="filter-actions">
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-filter"></i> Apply Filter</button>
+                <a href="{{ url_for('expenses') }}" class="btn btn-secondary" title="Reset Filters"><i class="fa-solid fa-rotate-right"></i> Reset</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Main History Data Table -->
+<div class="card glass">
+    <div class="card-header flex-between">
+        <div class="header-left">
+            <h3><i class="fa-solid fa-list"></i> Expense Transaction History</h3>
+            <span class="count-badge">{{ expenses|length }} Records Found</span>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openModal('addExpenseModal')">
+            <i class="fa-solid fa-plus"></i> Add Expense
+        </button>
+    </div>
+
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>#ID</th>
+                    <th>Date</th>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th>Payment Method</th>
+                    <th class="text-right">Amount</th>
+                    <th class="text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if expenses %}
+                    {% for exp in expenses %}
+                        <tr>
+                            <td class="font-mono text-muted">#{{ exp.id }}</td>
+                            <td class="font-mono">{{ exp.expense_date }}</td>
+                            <td>
+                                <span class="category-pill" style="background-color: {{ exp.category_color }}20; color: {{ exp.category_color }}; border-color: {{ exp.category_color }}40;">
+                                    <span class="dot" style="background-color: {{ exp.category_color }};"></span>
+                                    {{ exp.category_name }}
+                                </span>
+                            </td>
+                            <td>{{ exp.description or '-' }}</td>
+                            <td><span class="badge-payment">{{ exp.payment_method }}</span></td>
+                            <td class="text-right font-bold text-lg">₹{{ "%.2f"|format(exp.amount) }}</td>
+                            <td class="text-center">
+                                <button class="btn-icon text-primary" title="Edit Expense" onclick='openEditModal({{ exp|tojson }})'>
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+                                <button class="btn-icon text-danger" title="Delete Expense" onclick="confirmDeleteExpense({{ exp.id }})">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="empty-table">
+                            <i class="fa-solid fa-folder-open fa-2x text-muted mb-2"></i>
+                            <p>No expense records match your active search and filter criteria.</p>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Edit Expense Modal -->
+<div class="modal-backdrop" id="editExpenseModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><i class="fa-solid fa-pen-to-square"></i> Edit Expense Record</h3>
+            <button class="modal-close" onclick="closeModal('editExpenseModal')">&times;</button>
+        </div>
+        <form id="editExpenseForm" action="" method="POST" class="modal-body">
+            <input type="hidden" id="edit_exp_id" name="expense_id">
+
+            <div class="form-group">
+                <label for="edit_exp_amount">Amount (₹)</label>
+                <div class="input-icon">
+                    <i class="fa-solid fa-dollar-sign"></i>
+                    <input type="number" step="0.01" min="0.01" id="edit_exp_amount" name="amount" required placeholder="0.00">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group col-6">
+                    <label for="edit_exp_category">Category</label>
+                    <select id="edit_exp_category" name="category_id" required>
+                        {% for cat in categories %}
+                            <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group col-6">
+                    <label for="edit_exp_date">Expense Date</label>
+                    <input type="date" id="edit_exp_date" name="expense_date" required max="{{ today }}">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="edit_exp_payment">Payment Method</label>
+                <select id="edit_exp_payment" name="payment_method" required>
+                    <option value="UPI">UPI Payment</option>
+                    <option value="Credit Card">Credit Card</option>
+                    <option value="Debit Card">Debit Card</option>
+                    <option value="Net Banking">Net Banking</option>
+                    <option value="Cash">Cash</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="edit_exp_desc">Description / Notes</label>
+                <textarea id="edit_exp_desc" name="description" rows="2"></textarea>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('editExpenseModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Hidden Form for Delete -->
+<form id="deleteExpenseForm" method="POST" action="" style="display:none;"></form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function openEditModal(exp) {
+        document.getElementById('edit_exp_id').value = exp.id;
+        document.getElementById('edit_exp_amount').value = exp.amount;
+        document.getElementById('edit_exp_category').value = exp.category_id;
+        document.getElementById('edit_exp_date').value = exp.expense_date;
+        document.getElementById('edit_exp_payment').value = exp.payment_method;
+        document.getElementById('edit_exp_desc').value = exp.description || '';
+
+        const form = document.getElementById('editExpenseForm');
+        form.action = `/expenses/edit/${exp.id}`;
+
+        openModal('editExpenseModal');
+    }
+
+    function confirmDeleteExpense(id) {
+        if (confirm("Are you sure you want to permanently delete this expense record?")) {
+            const form = document.getElementById('deleteExpenseForm');
+            form.action = `/expenses/delete/${id}`;
+            form.submit();
+        }
+    }
+</script>
+{% endblock %}

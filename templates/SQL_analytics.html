@@ -1,0 +1,169 @@
+{% extends 'base.html' %}
+
+{% block title %}SQL Query Inspector & Analytics{% endblock %}
+{% block page_title %}SQL Query Inspector{% endblock %}
+{% block page_subtitle %}Live evaluation and code demonstration of required SQL aggregation, grouping, and date functions{% endblock %}
+
+{% block content %}
+<div class="sql-inspector-grid">
+    
+    <!-- Query Card 1: SUM() & COUNT() -->
+    <div class="card glass mb-4">
+        <div class="card-header flex-between">
+            <div>
+                <h3>1. Overall & Current Month Totals</h3>
+                <p class="text-muted">Demonstrates: <code>SUM()</code>, <code>COUNT()</code>, <code>TO_CHAR()</code> date filtering</p>
+            </div>
+            <span class="badge-tech">SQL Functions</span>
+        </div>
+        <div class="query-code-block">
+            <pre><code>SELECT 
+    COALESCE(SUM(amount), 0.00) AS total_all_time_expenses,
+    COUNT(id) AS total_transaction_count
+FROM expenses
+WHERE user_id = 1;
+
+SELECT 
+    COALESCE(SUM(amount), 0.00) AS current_month_expenses,
+    COUNT(id) AS current_month_transaction_count
+FROM expenses
+WHERE user_id = 1 
+  AND TO_CHAR(expense_date, 'YYYY-MM') = TO_CHAR(CURRENT_DATE, 'YYYY-MM');</code></pre>
+        </div>
+        <div class="query-output mt-3">
+            <h5>Execution Output:</h5>
+            <div class="kpi-inline">
+                <div class="kpi-pill">All Time Total: <strong>₹{{ "%.2f"|format(total_expenses.total_amount) }}</strong> ({{ total_expenses.total_count }} txns)</div>
+                <div class="kpi-pill">Current Month: <strong>₹{{ "%.2f"|format(monthly_expenses.monthly_amount) }}</strong> ({{ monthly_expenses.monthly_count }} txns)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Query Card 2: AVG() with Subquery -->
+    <div class="card glass mb-4">
+        <div class="card-header flex-between">
+            <div>
+                <h3>2. Average Monthly Expenditure Calculation</h3>
+                <p class="text-muted">Demonstrates: <code>AVG()</code>, Nested Subquery with <code>GROUP BY</code></p>
+            </div>
+            <span class="badge-tech">SQL Aggregation</span>
+        </div>
+        <div class="query-code-block">
+            <pre><code>SELECT 
+    ROUND(AVG(monthly_total), 2) AS average_monthly_spending,
+    COUNT(month_year) AS total_months_evaluated,
+    SUM(monthly_total) AS total_overall_spent
+FROM (
+    SELECT 
+        TO_CHAR(expense_date, 'YYYY-MM') AS month_year,
+        SUM(amount) AS monthly_total
+    FROM expenses
+    WHERE user_id = 1
+    GROUP BY TO_CHAR(expense_date, 'YYYY-MM')
+) AS monthly_totals;</code></pre>
+        </div>
+        <div class="query-output mt-3">
+            <h5>Execution Output:</h5>
+            <div class="kpi-inline">
+                <div class="kpi-pill">Average Monthly Expenditure: <strong>₹{{ "%.2f"|format(avg_monthly.average_monthly_spending) }} / month</strong></div>
+                <div class="kpi-pill">Months Evaluated: <strong>{{ avg_monthly.months_count }} months</strong></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Query Card 3: GROUP BY & HAVING -->
+    <div class="card glass mb-4">
+        <div class="card-header flex-between">
+            <div>
+                <h3>3. Category Filtering via HAVING Clause</h3>
+                <p class="text-muted">Demonstrates: <code>JOIN</code>, <code>SUM()</code>, <code>GROUP BY</code>, <code>HAVING SUM(amount) > 5000</code>, <code>ORDER BY</code></p>
+            </div>
+            <span class="badge-tech">SQL HAVING</span>
+        </div>
+        <div class="query-code-block">
+            <pre><code>SELECT 
+    c.name AS category_name,
+    c.budget_limit,
+    SUM(e.amount) AS total_spent,
+    COUNT(e.id) AS transaction_count
+FROM expenses e
+JOIN categories c ON e.category_id = c.id
+WHERE e.user_id = 1
+GROUP BY c.id, c.name, c.budget_limit
+HAVING SUM(e.amount) > 5000.00
+ORDER BY total_spent DESC;</code></pre>
+        </div>
+        <div class="query-output mt-3">
+            <h5>Execution Output:</h5>
+            <table class="data-table-sm">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Budget Limit</th>
+                        <th>Total Spent</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in high_spending_categories %}
+                        <tr>
+                            <td>{{ item.category_name }}</td>
+                            <td>₹{{ "%.2f"|format(item.budget_limit) }}</td>
+                            <td class="font-bold text-danger">₹{{ "%.2f"|format(item.total_spent) }}</td>
+                            <td><span class="badge-danger">Passed HAVING Threshold (₹5,000+)</span></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Query Card 4: Date Functions & Weekly Aggregation -->
+    <div class="card glass">
+        <div class="card-header flex-between">
+            <div>
+                <h3>4. Date Function Aggregations (Weekly & Daily)</h3>
+                <p class="text-muted">Demonstrates: <code>TO_CHAR(date, 'IYYY-"W"IW')</code>, <code>MIN()</code>, <code>MAX()</code>, <code>ORDER BY</code></p>
+            </div>
+            <span class="badge-tech">Date Functions</span>
+        </div>
+        <div class="query-code-block">
+            <pre><code>SELECT 
+    TO_CHAR(expense_date, 'IYYY-"W"IW') AS year_week,
+    MIN(expense_date) AS week_start,
+    MAX(expense_date) AS week_end,
+    SUM(amount) AS weekly_total,
+    AVG(amount) AS weekly_average,
+    COUNT(id) AS transaction_count
+FROM expenses
+WHERE user_id = 1
+GROUP BY TO_CHAR(expense_date, 'IYYY-"W"IW')
+ORDER BY year_week DESC;</code></pre>
+        </div>
+        <div class="query-output mt-3">
+            <h5>Sample Output (Top 3 Weeks):</h5>
+            <table class="data-table-sm">
+                <thead>
+                    <tr>
+                        <th>Year-Week</th>
+                        <th>Date Span</th>
+                        <th>Transactions</th>
+                        <th>Weekly Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for w in weekly_report[:3] %}
+                        <tr>
+                            <td class="font-mono">{{ w.year_week }}</td>
+                            <td class="font-mono">{{ w.week_start }} to {{ w.week_end }}</td>
+                            <td>{{ w.transaction_count }}</td>
+                            <td class="font-bold">₹{{ "%.2f"|format(w.weekly_total) }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

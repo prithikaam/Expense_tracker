@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard Overview{% endblock %}
+{% block page_subtitle %}Financial summary and real-time spending insights{% endblock %}
+
+{% block content %}
+<!-- KPI Metrics Cards Row -->
+<div class="kpi-grid">
+    <!-- Card 1: Total All-Time Expenses -->
+    <div class="kpi-card glass">
+        <div class="kpi-icon icon-indigo">
+            <i class="fa-solid fa-coins"></i>
+        </div>
+        <div class="kpi-info">
+            <span class="kpi-title">Total All-Time Spent</span>
+            <h3 class="kpi-value">₹{{ "%.2f"|format(total_expenses.total_amount) }}</h3>
+            <span class="kpi-subtitle"><i class="fa-solid fa-list-check"></i> {{ total_expenses.total_count }} total transactions</span>
+        </div>
+    </div>
+
+    <!-- Card 2: Current Month Expenses -->
+    <div class="kpi-card glass">
+        <div class="kpi-icon icon-emerald">
+            <i class="fa-solid fa-calendar-day"></i>
+        </div>
+        <div class="kpi-info">
+            <span class="kpi-title">Current Month Expenses</span>
+            <h3 class="kpi-value">₹{{ "%.2f"|format(monthly_expenses.monthly_amount) }}</h3>
+            <span class="kpi-subtitle"><i class="fa-solid fa-chart-line"></i> {{ monthly_expenses.monthly_count }} transactions in current month</span>
+        </div>
+    </div>
+
+    <!-- Card 3: Highest Spending Category -->
+    <div class="kpi-card glass">
+        <div class="kpi-icon icon-amber">
+            <i class="fa-solid fa-fire"></i>
+        </div>
+        <div class="kpi-info">
+            <span class="kpi-title">Top Spending Category</span>
+            <h3 class="kpi-value">
+                {% if highest_category %}
+                    {{ highest_category.category_name }}
+                {% else %}
+                    N/A
+                {% endif %}
+            </h3>
+            <span class="kpi-subtitle">
+                {% if highest_category %}
+                    <span class="badge-color" style="background-color: {{ highest_category.category_color }};"></span>
+                    ₹{{ "%.2f"|format(highest_category.total_spent) }} total
+                {% else %}
+                    No expense records yet
+                {% endif %}
+            </span>
+        </div>
+    </div>
+
+    <!-- Card 4: Average Monthly Expenditure -->
+    <div class="kpi-card glass">
+        <div class="kpi-icon icon-purple">
+            <i class="fa-solid fa-calculator"></i>
+        </div>
+        <div class="kpi-info">
+            <span class="kpi-title">Avg Monthly Expenditure</span>
+            <h3 class="kpi-value">₹{{ "%.2f"|format(avg_monthly.average_monthly_spending) }}</h3>
+            <span class="kpi-subtitle"><i class="fa-solid fa-calculator"></i> Computed over {{ avg_monthly.months_count }} active months</span>
+        </div>
+    </div>
+</div>
+
+<!-- Analytics Charts Section -->
+<div class="charts-grid">
+    <div class="chart-card glass">
+        <div class="card-header">
+            <h3><i class="fa-solid fa-chart-simple"></i> Monthly Expense Trends</h3>
+            <span class="card-tag">SQL SUM() & GROUP BY</span>
+        </div>
+        <div class="chart-container">
+            <canvas id="monthlyTrendChart"></canvas>
+        </div>
+    </div>
+
+    <div class="chart-card glass">
+        <div class="card-header">
+            <h3><i class="fa-solid fa-chart-pie"></i> Spending by Category</h3>
+            <span class="card-tag">Category Aggregation</span>
+        </div>
+        <div class="chart-container">
+            <canvas id="categoryPieChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Section: Recent Transactions & Payment Method Breakdown -->
+<div class="content-grid-2col">
+    <!-- Recent Transactions Table -->
+    <div class="card glass">
+        <div class="card-header">
+            <h3><i class="fa-solid fa-clock-rotate-left"></i> Recent Transactions</h3>
+            <a href="{{ url_for('expenses') }}" class="btn-text">View All History <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Category</th>
+                        <th>Description</th>
+                        <th>Payment</th>
+                        <th class="text-right">Amount</th>
+                        <th class="text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if recent_expenses %}
+                        {% for exp in recent_expenses %}
+                            <tr>
+                                <td class="font-mono">{{ exp.expense_date }}</td>
+                                <td>
+                                    <span class="category-pill" style="background-color: {{ exp.category_color }}20; color: {{ exp.category_color }}; border-color: {{ exp.category_color }}40;">
+                                        <span class="dot" style="background-color: {{ exp.category_color }};"></span>
+                                        {{ exp.category_name }}
+                                    </span>
+                                </td>
+                                <td>{{ exp.description or '-' }}</td>
+                                <td><span class="badge-payment">{{ exp.payment_method }}</span></td>
+                                <td class="text-right font-bold">₹{{ "%.2f"|format(exp.amount) }}</td>
+                                <td class="text-center">
+                                    <button class="btn-icon text-danger" title="Delete" onclick="confirmDeleteExpense({{ exp.id }})">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="empty-table">No recent transactions found.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Quick Payment Breakdown Panel -->
+    <div class="card glass">
+        <div class="card-header">
+            <h3><i class="fa-solid fa-credit-card"></i> Payment Method Distribution</h3>
+            <span class="card-tag">SQL Grouping</span>
+        </div>
+        <div class="chart-container-small">
+            <canvas id="paymentChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Form Hidden Modal Trigger -->
+<form id="deleteExpenseForm" method="POST" action="" style="display:none;">
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Load interactive Dashboard Charts from backend data
+        fetch('/api/chart-data')
+            .then(res => res.json())
+            .then(data => {
+                renderDashboardCharts(data);
+            });
+    });
+
+    function confirmDeleteExpense(id) {
+        if (confirm("Are you sure you want to delete this expense record?")) {
+            const form = document.getElementById('deleteExpenseForm');
+            form.action = `/expenses/delete/${id}`;
+            form.submit();
+        }
+    }
+</script>
+{% endblock %}

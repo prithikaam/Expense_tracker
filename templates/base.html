@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Expense Tracker System{% endblock %} - Monarch Softwares</title>
+
+    <!-- Google Fonts: Inter & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon"><i class="fa-solid fa-wallet"></i></div>
+                    <div class="logo-text">
+                        <h2>ExpenseTracker</h2>
+                        <span class="badge">PostgreSQL</span>
+                    </div>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="{{ url_for('dashboard') }}" class="nav-link {% if active_page == 'dashboard' %}active{% endif %}">
+                    <i class="fa-solid fa-chart-pie"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="{{ url_for('expenses') }}" class="nav-link {% if active_page == 'expenses' %}active{% endif %}">
+                    <i class="fa-solid fa-receipt"></i>
+                    <span>Expenses</span>
+                </a>
+                <a href="{{ url_for('categories') }}" class="nav-link {% if active_page == 'categories' %}active{% endif %}">
+                    <i class="fa-solid fa-tags"></i>
+                    <span>Categories</span>
+                </a>
+                <a href="{{ url_for('reports') }}" class="nav-link {% if active_page == 'reports' %}active{% endif %}">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span>Reports & Analytics</span>
+                </a>
+                <a href="{{ url_for('sql_analytics') }}" class="nav-link {% if active_page == 'sql_analytics' %}active{% endif %}">
+                    <i class="fa-solid fa-database"></i>
+                    <span>SQL Query Inspector</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-profile">
+                    <div class="avatar"><i class="fa-solid fa-user-astronaut"></i></div>
+                    <div class="user-info">
+                        <span class="user-name">{{ current_user.full_name }}</span>
+                        <span class="user-role">Expense Tracker</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Wrapper -->
+        <div class="main-wrapper">
+            <!-- Top Navigation Header -->
+            <header class="top-header">
+                <button class="mobile-toggle" id="mobileToggle" aria-label="Toggle Menu">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+
+                <div class="header-title">
+                    <h1>{% block page_title %}Overview{% endblock %}</h1>
+                    <p class="subtitle">{% block page_subtitle %}Track, analyse and optimize your personal financial health{% endblock %}</p>
+                </div>
+
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="openModal('addExpenseModal')">
+                        <i class="fa-solid fa-plus"></i> Quick Expense
+                    </button>
+                    <div class="date-badge">
+                        <i class="fa-regular fa-calendar"></i>
+                        <span id="currentDateStr">29 Sep 2026</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Flash Notifications / Alerts -->
+            <div class="toast-container" id="toastContainer">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="toast toast-{{ category }}">
+                                <i class="fa-solid {% if category == 'success' %}fa-circle-check{% elif category == 'danger' %}fa-circle-exclamation{% else %}fa-circle-info{% endif %}"></i>
+                                <span>{{ message }}</span>
+                                <button class="toast-close" onclick="this.parentElement.remove()">&times;</button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+            </div>
+
+            <!-- Page Specific Body Content -->
+            <main class="content-body">
+                {% block content %}{% endblock %}
+            </main>
+
+            <!-- Footer -->
+            <footer class="app-footer">
+                <p>&copy; 2026 Expense Tracker System | Monarch Softwares Final Round Selection Task</p>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Quick Add Expense Modal -->
+    <div class="modal-backdrop" id="addExpenseModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-plus-circle"></i> Add New Expense</h3>
+                <button class="modal-close" onclick="closeModal('addExpenseModal')">&times;</button>
+            </div>
+            <form action="{{ url_for('add_expense') }}" method="POST" class="modal-body">
+                <div class="form-group">
+                    <label for="exp_amount">Amount (₹)</label>
+                    <div class="input-icon">
+                        <i class="fa-solid fa-dollar-sign"></i>
+                        <input type="number" step="0.01" min="0.01" id="exp_amount" name="amount" required placeholder="0.00">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group col-6">
+                        <label for="exp_category">Category</label>
+                        <select id="exp_category" name="category_id" required>
+                            {% for cat in global_categories %}
+                                <option value="{{ cat.id }}">{{ cat.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group col-6">
+                        <label for="exp_date">Expense Date</label>
+                        <input type="date" id="exp_date" name="expense_date" required value="{{ today }}" max="{{ today }}">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="exp_payment">Payment Method</label>
+                    <select id="exp_payment" name="payment_method" required>
+                        <option value="UPI">UPI Payment</option>
+                        <option value="Credit Card">Credit Card</option>
+                        <option value="Debit Card">Debit Card</option>
+                        <option value="Net Banking">Net Banking</option>
+                        <option value="Cash" selected>Cash</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="exp_desc">Description / Notes</label>
+                    <textarea id="exp_desc" name="description" rows="2" placeholder="What was this expense for?"></textarea>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addExpenseModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Save Expense</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Global JS Script -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
